@@ -21,12 +21,14 @@
  */
 
 import UIKit
+import CoreData
 
 class ViewController: UIViewController {
 
   // MARK: - Properties
   fileprivate let teamCellIdentifier = "teamCellReuseIdentifier"
   var coreDataStack: CoreDataStack!
+  var fetchedResultsController: NSFetchedResultsController<Team>!
 
   // MARK: - IBOutlets
   @IBOutlet weak var tableView: UITableView!
@@ -35,6 +37,25 @@ class ViewController: UIViewController {
   // MARK: - View Life Cycle
   override func viewDidLoad() {
     super.viewDidLoad()
+    
+    let fetchRequest:NSFetchRequest<Team> = Team.fetchRequest()
+    
+    let zoneSort = NSSortDescriptor(key: #keyPath(Team.qualifyingZone), ascending: true)
+    let scoreSort = NSSortDescriptor(key: #keyPath(Team.wins), ascending: false)
+    let nameSort = NSSortDescriptor(key: #keyPath(Team.teamName), ascending: true)
+    fetchRequest.sortDescriptors = [zoneSort, scoreSort, nameSort]
+    
+    fetchedResultsController = NSFetchedResultsController(fetchRequest: fetchRequest, managedObjectContext: coreDataStack.managedContext, sectionNameKeyPath: #keyPath(Team.qualifyingZone), cacheName: "worldCup")
+    
+    fetchedResultsController.delegate = self
+    
+    do {
+      
+      try fetchedResultsController.performFetch()
+    } catch let error as NSError {
+      
+      print("Fetching error: \(error), \(error.userInfo)")
+    }
   }
 }
 
@@ -47,9 +68,10 @@ extension ViewController {
       return
     }
 
-    cell.flagImageView.backgroundColor = UIColor.blue
-    cell.teamLabel.text = "Team Name"
-    cell.scoreLabel.text = "Wins: 0"
+    let team = fetchedResultsController.object(at: indexPath)
+    cell.flagImageView.image = UIImage(named: team.imageName!)
+    cell.teamLabel.text = team.teamName
+    cell.scoreLabel.text = "Wins: \(team.wins)"
   }
 }
 
@@ -57,11 +79,29 @@ extension ViewController {
 extension ViewController: UITableViewDataSource {
 
   func numberOfSections(in tableView: UITableView) -> Int {
-    return 1
+    
+    guard let sections = fetchedResultsController.sections else {
+      
+      return 0
+    }
+    
+    return sections.count
   }
 
   func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-    return 20
+    
+    guard let sectionInfo = fetchedResultsController.sections?[section] else {
+      
+      return 0
+    }
+    
+    return sectionInfo.numberOfObjects
+  }
+  
+  func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+    
+    let sectionInfo = fetchedResultsController.sections?[section]
+    return sectionInfo?.name
   }
 
   func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -77,5 +117,48 @@ extension ViewController: UITableViewDataSource {
 extension ViewController: UITableViewDelegate {
 
   func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    
+    let team = fetchedResultsController.object(at: indexPath)
+    team.wins = team.wins + 1
+    coreDataStack.saveContext()
   }
 }
+
+// MARK: - NSFetchedResultControllerDelegate
+extension ViewController: NSFetchedResultsControllerDelegate {
+  
+  func controllerDidChangeContent(_ controller: NSFetchedResultsController<NSFetchRequestResult>) {
+    
+    tableView.reloadData()
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
